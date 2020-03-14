@@ -5,13 +5,24 @@ import uuid
 from functools import wraps
 import jwt
 import datetime
+from flask_babel import Babel, gettext
 
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'THIS IS MY SECRET KEY FOR DEBUGING ONLY USE SOME THING SECURE'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///todos.db'
+app.config['BABEL_DEFAULT_LOCALE'] = 'en'
 
 db = SQLAlchemy(app)
+babel = Babel(app)
+
+
+@babel.localeselector
+def get_locale():
+    if request.headers['language']:
+        return request.headers['language']
+    else:
+        return 'en'
 
 
 class User(db.Model):
@@ -39,14 +50,14 @@ def token_required(f):
             token = request.headers['x-access-token']
 
         if not token:
-            return jsonify({'msg': 'Login is required', 'statusCode': 400})
+            return jsonify({'msg': gettext('Login is required'), 'statusCode': 400})
 
         try:
             data = jwt.decode(token, app.config['SECRET_KEY'])
             current_user = User.query.filter_by(
                 public_id=data['public_id']).first()
         except:
-            return jsonify({'msg': 'Login is required', 'statusCode': 400})
+            return jsonify({'msg': gettext('Login is required'), 'statusCode': 400})
         return f(current_user, *args, **kwargs)
     return decorated
 
@@ -56,19 +67,19 @@ def login():
     auth = request.authorization
 
     if not auth or not auth.username or not auth.password:
-        return jsonify({'statusCode:': 400, "msg": "email or password is incorrect"})
+        return jsonify({'statusCode:': 400, "msg": gettext("Email or password is incorrect")})
     # TODO: email validation
     user = User.query.filter_by(email=auth.username).first()
 
     if not user:
-        return jsonify({'statusCode:': 400, "msg": "email or password is incorrect"})
+        return jsonify({'statusCode:': 400, "msg": gettext("Email or password is incorrect")})
 
     if check_password_hash(user.password, auth.password):
         token = jwt.encode({'public_id': user.public_id, 'exp': datetime.datetime.utcnow(
         ) + datetime.timedelta(days=30)}, app.config['SECRET_KEY'])
 
         return jsonify({'statusCode': 200, 'token': token.decode('UTF-8')})
-    return jsonify({'statusCode:': 400, "msg": "email or password is incorrect"})
+    return jsonify({'statusCode:': 400, "msg": gettext("Email or password is incorrect")})
 
 
 @app.route('/sign_up', methods=['POST'])
@@ -76,7 +87,7 @@ def sign_up():
     data = request.get_json()
 
     if not data or not data['password'] or not data['email']:
-        return jsonify({'statusCode:': 400, "msg": "email or password is incorrect"})
+        return jsonify({'statusCode:': 400, "msg": gettext("Email or password is incorrect")})
 
     hashed_password = generate_password_hash(
         data['password'], method='sha256')
