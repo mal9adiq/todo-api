@@ -19,7 +19,9 @@ babel = Babel(app)
 
 @babel.localeselector
 def get_locale():
-    if request.headers['language']:
+
+    language = request.headers
+    if language:
         return request.headers['language']
     else:
         return 'en'
@@ -99,26 +101,62 @@ def sign_up():
     return jsonify({'statusCode': 200, 'msg': 'User Has Been Created Successfully'})
 
 
-@app.route('/add_todo')
-def add_todo():
-    return 'add_todo'
+@app.route('/add_todo', methods=['POST'])
+@token_required
+def add_todo(current_user):
+    data = request.get_json()
+
+    new_todo = ToDo(title=data['title'], desc=data['desc'],
+                    status=data['status'], owner_id=current_user.id)
+    db.session.add(new_todo)
+    db.session.commit()
+    todo = {'id': new_todo.id, 'status': new_todo.status,
+            'title': new_todo.title, 'desc': new_todo.desc}
+    return jsonify({'statusCode': 200, 'msg': 'ToDo Has Been Created Successfully', 'todo': todo})
 
 
-@app.route('/update_todo')
-def update_todo():
+@app.route('/update_todo/<id>', methods=['PUT'])
+@token_required
+def update_todo(current_user, id):
+    data = request.get_json()
+
+    new_todo = ToDo.query.filter_by(id=id, owner_id=current_user.id).first()
+    new_todo.status = data['status']
+    db.session.commit()
+    todo = {'id': new_todo.id, 'status': new_todo.status,
+            'title': new_todo.title, 'desc': new_todo.desc}
+    return jsonify({'statusCode': 200, 'msg': 'ToDo Has Been Updated Successfully', 'todo': todo})
+
     return 'update_todo'
 
 
-@app.route('/delete_todo')
-def delete_todo():
-    return 'delete_todo'
+@app.route('/delete_todo/<id>')
+@token_required
+def delete_todo(current_user, id):
+    todo = ToDo.query.with_parent(current_user).filter_by(id=id).first()
+
+    if not todo:
+        return jsonify({'statusCode': 400, "msg": gettext('There no todo to delete')})
+
+    db.session.delete(todo)
+    db.session.commit()
+
+    return jsonify({"statusCode": 200, "msg": gettext('Todo has been deleted successfully')})
 
 
 @app.route('/get_all_todo')
 @token_required
 def get_all_todo(current_user):
 
-    todos = current_user.todo_list
+    todos_list = current_user.todo_list
+
+    todos = []
+
+    for todo in todos_list:
+        todo_obj = {'id': todo.id, "title": todo.title,
+                    "desc": todo.desc, 'status': todo.status}
+
+        todos.append(todo_obj)
 
     return jsonify({'statusCode': 200, 'todos': todos})
 
